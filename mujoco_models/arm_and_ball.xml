@@ -41,9 +41,8 @@
   </tendon>
 
   <actuator>
-    <motor joint="shoulder" ctrlrange="-1 1" gear="50"/>
-    <motor joint="elbow" ctrlrange="-1 1" gear="50"/>
+    <motor name="shoulder_motor" joint="shoulder" ctrlrange="-1 1" gear="50"/>
+    <motor name="elbow_motor" joint="elbow" ctrlrange="-1 1" gear="50"/>
   </actuator>
-
 
 </mujoco>
