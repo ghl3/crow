@@ -1,3 +1,4 @@
+import numpy as np
 import dm_control.mujoco as mujoco
 from dm_control.mujoco.wrapper.mjbindings import enums
 
@@ -25,8 +26,8 @@ def simulate(physics, duration=10, frames_per_sec=60):
         states.append(
             {
                 "time": physics.time(),
-                "pos": physics.named.data.geom_xpos,
-                "mat": physics.named.data.geom_xmat,
+                "pos": np.copy(physics.named.data.geom_xpos),
+                "mat": np.copy(physics.named.data.geom_xmat),
             }
         )
 

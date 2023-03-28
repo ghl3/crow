@@ -12,11 +12,11 @@
   <worldbody>
     <light pos="0 1 1" dir="0 -1 -1" diffuse="1 1 1"/>
 
-    <body>
+    <body name='upper_arm'>
       <geom type="capsule" fromto="0 0 1.0  0 0 0.6" size="0.06"/>
       <joint name="shoulder" type="ball" pos="0 0 1"/>
 
-      <body>
+      <body name='lower_arm'>
         <geom type="capsule" fromto="0 0 0.6  0.3 0 0.6" size="0.04" friction="1.0 0.5 0.1"/>
         <joint name='elbow' type="hinge" pos="0 0 0.6" axis="0 1 0"/>
         <site name="end1" pos="0.3 0 0.6" type="sphere" size="0.01"/>
@@ -25,7 +25,7 @@
 
     </body>
 
-    <body>
+    <body name='ball'>
       <geom type="sphere" pos="0.9 0 0.6" size="0.05"/>
       <site name="end2" pos="0.9 0 0.6" type="sphere" size="0.01"/>
       <joint type="free"/>

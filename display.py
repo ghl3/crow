@@ -2,6 +2,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from IPython.display import HTML
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def display_video(frames, framerate=30):
@@ -25,3 +27,20 @@ def display_video(frames, framerate=30):
         fig=fig, func=update, frames=frames, interval=interval, blit=True, repeat=False
     )
     return HTML(anim.to_html5_video())
+
+
+def display_3d(trajectory_dict):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    for name, df in trajectory_dict.items():
+        x, y, z = df["x"].iloc[:50], df["y"].iloc[:50], df["z"].iloc[:50]
+        ax.scatter(x, y, z, label=name)
+
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+
+    ax.legend()
+
+    plt.show()
