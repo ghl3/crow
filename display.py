@@ -4,6 +4,9 @@ import matplotlib.animation as animation
 from IPython.display import HTML
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import cv2
+import numpy as np
+from PIL import Image
 
 
 def display_video(frames, framerate=30):
@@ -30,6 +33,9 @@ def display_video(frames, framerate=30):
 
 
 def display_3d(trajectory_dict):
+    """
+    trajectory_dict: Each
+    """
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
 
@@ -44,3 +50,32 @@ def display_3d(trajectory_dict):
     ax.legend()
 
     plt.show()
+
+
+def save_episode_as_video(env, agent, video_filename):
+    video_writer = None
+    timestep = env.reset()
+    done = False
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    video = cv2.VideoWriter(video_filename, fourcc, 20.0, (640, 480))
+
+    while not done:
+        # state = np.array(timestep.observation)
+        state = {key: np.array(value) for key, value in timestep.observation.items()}
+        action = agent.get_action(state, noise=False)
+        timestep = env.step(action)
+        done = timestep.last()
+
+        # Render the environment
+        # image = env.render(mode='rgb_array')
+        frame = env.physics.render(camera_id=0, width=640, height=480)
+
+        # if video_writer is None:
+        #    # Initialize the video writer if it hasn't been initialized
+        #    height, width, _ = image.shape
+        #    video_writer = cv2.VideoWriter(video_filename, cv2.VideoWriter_fourcc(*'mp4v'), 30, (width, height))
+
+        video.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+
+    video.release()
