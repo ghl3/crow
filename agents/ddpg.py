@@ -1,5 +1,6 @@
 # DDPG agent
 from dataclasses import dataclass
+from agents.agent import BaseAgent
 from transition_history import TransitionHistory
 from tensorflow.keras import layers
 import tensorflow as tf
@@ -50,7 +51,7 @@ class TrainResult:
     critic_loss: float
 
 
-class DDPGAgent:
+class DDPGAgent(BaseAgent):
     def __init__(self, state_dim, action_dim, action_bound, params=Hyperparameters()):
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -88,12 +89,16 @@ class DDPGAgent:
             tf.TensorSpec(shape=(None, 1), dtype=tf.float32),
         )
 
+    @tf.function
     def get_action(self, state, noise=True):
-        flattened_state = self._flatten_state(state).reshape((1, -1))
+        flattened_state = self._flatten_state(state)
+        flattened_state = tf.reshape(flattened_state, (1, -1))
         action = self.actor(flattened_state)
         if noise:
-            action += np.random.normal(0, self.params.noise_std, size=action.shape)
-        return np.clip(action, -self.action_bound, self.action_bound)
+            action += tf.random.normal(
+                mean=0, stddev=self.params.noise_std, shape=action.shape
+            )
+        return tf.clip_by_value(action, -self.action_bound, self.action_bound)
 
     def train(self, state, action, next_state, reward, done):
         transition = Transition(
@@ -118,53 +123,6 @@ class DDPGAgent:
             rewards=batch.rewards,
             dones=batch.dones,
         )
-
-        #
-        # Calculate the 'target' q-value using target netowrks
-        #
-
-        # Given the next state, pick a next action
-        # target_actions = self.actor_target(batch.next_states)
-        # Then, calculate the q-value for that (next_state, next_action)
-        # target_q_values = self.critic_target([batch.next_states, target_actions])
-        # And add it to the existing reward to get the full reward
-        # target_q_values = (
-        #    batch.rewards
-        #    + (1 - np.array(batch.dones)) * self.params.gamma * target_q_values
-        # )
-
-        #
-        # Update the Critic
-        #
-        # with tf.GradientTape() as tape:
-        # Then, we calculate the q-value using the normal critic
-        #    q_values = self.critic([batch.states, np.array(batch.actions)])
-        # and we compare it to our target q-value and use that to derive the loss.
-        #    critic_loss = tf.reduce_mean(tf.square(target_q_values - q_values))
-        #    critic_grads = tape.gradient(critic_loss, self.critic.trainable_weights)
-        # critic_grads, _ = tf.clip_by_global_norm(critic_grads, clip_norm=1.0)
-        # self.critic_optimizer.apply_gradients(
-        #    zip(critic_grads, self.critic.trainable_weights)
-        # )
-
-        #
-        # Update the Actor
-        #
-        # with tf.GradientTape() as tape:
-        # Get the action for the given state
-        #    actions = self.actor(batch.states)
-        # Use the critic to determine the q-value for that action
-        #    q_values = self.critic([batch.states, actions])
-        # And derive a loss from that q-value
-        #    actor_loss = -tf.reduce_mean(q_values)
-        #    actor_grads = tape.gradient(actor_loss, self.actor.trainable_weights)
-        # actor_grads, _ = tf.clip_by_global_norm(actor_grads, clip_norm=1.0)
-        # self.actor_optimizer.apply_gradients(
-        #    zip(actor_grads, self.actor.trainable_weights)
-        # )
-
-        # Update the target networks
-        # self._update_target_networks()
 
         # Accumulate the losses for summaries
         self.episode_actor_losses.append(actor_loss.numpy())
@@ -247,4 +205,4 @@ class DDPGAgent:
         self.episode_rewards = []
 
     def _flatten_state(self, state):
-        return np.concatenate([state[key] for key in sorted(state.keys())])
+        return tf.concat([state[key] for key in sorted(state.keys())], axis=0)
