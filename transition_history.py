@@ -9,7 +9,7 @@ class Transitions:
     states: np.ndarray
     actions: np.ndarray
     next_states: np.ndarray
-    rewards: float
+    rewards: np.float32
     dones: bool
 
 
@@ -34,8 +34,12 @@ class TransitionHistory:
         next_states = np.concatenate([b.next_state for b in batch]).reshape(
             (batch_size, -1)
         )
-        rewards = np.array([b.reward for b in batch]).reshape((batch_size, -1))
-        dones = np.array([b.done for b in batch]).reshape((batch_size, -1))
+        rewards = np.array([b.reward for b in batch], dtype=np.float32).reshape(
+            (batch_size, -1)
+        )
+        dones = np.array([b.done for b in batch], dtype=np.float32).reshape(
+            (batch_size, -1)
+        )
 
         return Transitions(
             states=states,
