@@ -1,12 +1,18 @@
 # agents/ddpg.py
 
-# DDPG agent
-from dataclasses import dataclass
-from agents.agent import BaseAgent
-from transition_history import TransitionHistory
-from tensorflow.keras import layers
-import tensorflow as tf
 import numpy as np
+
+from dataclasses import dataclass
+
+import tensorflow as tf
+from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.initializers import HeNormal, Zeros
+from tensorflow.keras import layers
+
+from agents.agent import BaseAgent
+from agents.ornstein_uhlenbeck_noise import OrnsteinUhlenbeckActionNoise
+from transition_history import TransitionHistory
 from transition import Transition
 
 
@@ -15,8 +21,22 @@ from transition import Transition
 # It determines what the next action should be.
 def create_actor(state_dim, action_dim, action_bound):
     inputs = layers.Input(shape=(state_dim,))
-    x = layers.Dense(40, activation="relu")(inputs)
-    x = layers.Dense(30, activation="relu")(x)
+    x = layers.Dense(
+        40,
+        kernel_initializer=HeNormal(),
+        bias_initializer=Zeros(),
+        kernel_regularizer=l2(1e-5),
+    )(inputs)
+    x = BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Dense(
+        30,
+        kernel_initializer=HeNormal(),
+        bias_initializer=Zeros(),
+        kernel_regularizer=l2(1e-5),
+    )(x)
+    x = BatchNormalization()(x)
+    x = layers.ReLU()(x)
     raw_actions = layers.Dense(action_dim, activation="tanh")(x)
     actions = raw_actions * action_bound
     return tf.keras.Model(inputs=inputs, outputs=actions)
@@ -30,8 +50,22 @@ def create_critic(state_dim, action_dim):
     state_inputs = layers.Input(shape=(state_dim,))
     action_inputs = layers.Input(shape=(action_dim,))
     inputs = layers.Concatenate()([state_inputs, action_inputs])
-    x = layers.Dense(40, activation="relu")(inputs)
-    x = layers.Dense(30, activation="relu")(x)
+    x = layers.Dense(
+        40,
+        kernel_initializer=HeNormal(),
+        bias_initializer=Zeros(),
+        kernel_regularizer=l2(1e-5),
+    )(inputs)
+    x = BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Dense(
+        30,
+        kernel_initializer=HeNormal(),
+        bias_initializer=Zeros(),
+        kernel_regularizer=l2(1e-5),
+    )(x)
+    x = BatchNormalization()(x)
+    x = layers.ReLU()(x)
     q_values = layers.Dense(1)(x)
     return tf.keras.Model(inputs=[state_inputs, action_inputs], outputs=q_values)
 
@@ -62,12 +96,34 @@ class DDPGAgent(BaseAgent):
         self.critic = create_critic(state_dim, action_dim)
         self.critic_target = create_critic(state_dim, action_dim)
 
+        # Action noise
+        self.noise = OrnsteinUhlenbeckActionNoise(
+            mean=np.zeros(action_dim),
+            std_deviation=self.params.noise_std * np.ones(action_dim),
+        )
+
         # Optimizers
+        initial_actor_lr = self.params.actor_lr  # 0.001
+        actor_lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_actor_lr,
+            decay_steps=100000,
+            decay_rate=0.96,
+            staircase=True,
+        )
+
+        initial_critic_lr = self.params.critic_lr  # 0.002
+        critic_lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_critic_lr,
+            decay_steps=100000,
+            decay_rate=0.96,
+            staircase=True,
+        )
+
         self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-            learning_rate=self.params.actor_lr
+            learning_rate=actor_lr_schedule
         )
         self.critic_optimizer = tf.keras.optimizers.legacy.Adam(
-            learning_rate=self.params.critic_lr
+            learning_rate=critic_lr_schedule
         )
 
         self.episode_actor_losses = []
@@ -88,9 +144,7 @@ class DDPGAgent(BaseAgent):
         flattened_state = tf.reshape(flattened_state, (1, -1))
         action = self.actor(flattened_state)
         if noise:
-            action += tf.random.normal(
-                mean=0, stddev=self.params.noise_std, shape=action.shape
-            )
+            action += self.noise()
         return tf.clip_by_value(action, -self.action_bound, self.action_bound)
 
     def train(self, state, action, next_state, reward, done):
@@ -122,7 +176,7 @@ class DDPGAgent(BaseAgent):
         # Convert the loss to a RMS and scale by the target q values to make it a percentage
         # This avoids the loss increasing as q increases, which is a bit odd for Tensorboard
         self.episode_critic_losses.append(
-            np.sqrt(critic_loss.numpy()) / target_q_values.numpy()
+            (tf.sqrt(critic_loss) / tf.reduce_mean(target_q_values)).numpy()
         )
 
     @tf.function
