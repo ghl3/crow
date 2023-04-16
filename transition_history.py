@@ -1,3 +1,5 @@
+# transition_history.py
+
 from dataclasses import dataclass
 from typing import Dict
 import numpy as np
@@ -14,7 +16,7 @@ class Transitions:
 
 
 class TransitionHistory:
-    def __init__(self, capacity=1e6):
+    def __init__(self, capacity=1000000):
         self.capacity = capacity
         self.transitions = []
 

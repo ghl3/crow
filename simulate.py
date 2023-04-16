@@ -1,3 +1,5 @@
+# simulate.py
+
 import numpy as np
 import dm_control.mujoco as mujoco
 from dm_control.mujoco.wrapper.mjbindings import enums

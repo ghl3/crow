@@ -1,3 +1,5 @@
+# agents/ddpg.py
+
 # DDPG agent
 from dataclasses import dataclass
 from agents.agent import BaseAgent
@@ -45,12 +47,6 @@ class Hyperparameters:
     memory_capacity: int = int(1e6)
 
 
-@dataclass
-class TrainResult:
-    actor_loss: float
-    critic_loss: float
-
-
 class DDPGAgent(BaseAgent):
     def __init__(self, state_dim, action_dim, action_bound, params=Hyperparameters()):
         self.state_dim = state_dim
@@ -65,9 +61,6 @@ class DDPGAgent(BaseAgent):
         self.actor_target = create_actor(state_dim, action_dim, action_bound)
         self.critic = create_critic(state_dim, action_dim)
         self.critic_target = create_critic(state_dim, action_dim)
-
-        # Initialize target networks
-        # self.update_target_networks(tau=1)
 
         # Optimizers
         self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
