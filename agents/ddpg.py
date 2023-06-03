@@ -1,6 +1,6 @@
 # agents/ddpg.py
 
-import numpy as np
+import tensorflow.experimental.numpy as np
 
 from dataclasses import dataclass, field
 
@@ -12,6 +12,7 @@ from tensorflow.keras import layers
 
 from agents.agent import BaseAgent
 from agents.ornstein_uhlenbeck_noise import OrnsteinUhlenbeckActionNoise
+from timer import Timer
 from transition_history import TransitionHistory
 from transition import Transition
 
@@ -156,6 +157,8 @@ class DDPGAgent(BaseAgent):
             learning_rate=critic_lr_schedule
         )
 
+        self._timer = Timer()
+
     @tf.function
     def get_action(self, state, noise=True):
         flattened_state = self._flatten_state(state)
@@ -166,6 +169,7 @@ class DDPGAgent(BaseAgent):
         return tf.clip_by_value(action, -self.action_bound, self.action_bound)
 
     def train(self, state, action, next_state, reward, done):
+        self._timer.checkpoint("transition")
         transition = Transition(
             state=self._flatten_state(state),
             action=action,
@@ -177,8 +181,10 @@ class DDPGAgent(BaseAgent):
         if len(self.memory) < self.params.batch_size:
             return
 
+        self._timer.checkpoint("get_batch")
         batch = self.memory.get_batch(self.params.batch_size)
 
+        self._timer.checkpoint("train_batch")
         training_metrics = self._train_batch(
             states=batch.states,
             actions=batch.actions,
@@ -187,10 +193,13 @@ class DDPGAgent(BaseAgent):
             dones=batch.dones,
         )
 
+        self._timer.checkpoint("training_metrics")
         self.stats.episode_rewards.append(reward)
         self.stats.actor_losses.append(training_metrics["actor_loss"].numpy())
         self.stats.critic_losses.append(training_metrics["critic_loss"].numpy())
         self.stats.critic_nmses.append(training_metrics["critic_nmse"].numpy())
+
+        self._timer.stop()
 
     @tf.function
     def _train_batch(self, states, actions, next_states, rewards, dones):
@@ -219,9 +228,11 @@ class DDPGAgent(BaseAgent):
             critic_loss = tf.reduce_mean(tf.square(target_q_values - q_values))
             # Calculate this as a metric
             critic_nmse = tf.reduce_mean(
-                tf.math.divide_no_nan(
-                    tf.square(target_q_values - q_values),
-                    tf.square(target_q_values),
+                tf.sqrt(
+                    tf.math.divide_no_nan(
+                        tf.square(target_q_values - q_values),
+                        tf.square(target_q_values),
+                    )
                 ),
             )
             critic_grads = tape.gradient(critic_loss, self.critic.trainable_weights)
@@ -236,9 +247,9 @@ class DDPGAgent(BaseAgent):
         #
         with tf.GradientTape() as tape:
             # Get the action for the given state
-            actions = self.actor(states)
+            actor_actions = self.actor(states)
             # Use the critic to determine the q-value for that action
-            q_values = self.critic([states, actions])
+            q_values = self.critic([states, actor_actions])
             # And derive a loss from that q-value
             actor_loss = -tf.reduce_mean(q_values)
             actor_grads = tape.gradient(actor_loss, self.actor.trainable_weights)
