@@ -111,11 +111,15 @@ class Hyperparameters:
 
 
 class DDPGAgent(BaseAgent):
-    def __init__(self, state_dim, action_dim, action_bound, params=Hyperparameters()):
+    def __init__(self, state_dim, action_dim, action_bound, params):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.action_bound = action_bound
-        self.params = params
+
+        if params is None:
+            self.params = Hyperparameters()
+        else:
+            self.params = params
 
         self.memory = TransitionHistory()
 
