@@ -53,7 +53,6 @@ def display_3d(trajectory_dict):
 
 
 def save_episode_as_video(env, agent, video_filename):
-    video_writer = None
     timestep = env.reset()
     done = False
 
@@ -63,7 +62,7 @@ def save_episode_as_video(env, agent, video_filename):
     while not done:
         # state = np.array(timestep.observation)
         state = {key: np.array(value) for key, value in timestep.observation.items()}
-        action = agent.get_action(state, noise=False)
+        action = agent.get_action(state, epsilon=0)
         timestep = env.step(action)
         done = timestep.last()
 
