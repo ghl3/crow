@@ -47,6 +47,7 @@ class Stats:
     critic_nmses: list = field(default_factory=list)
 
     def clear(self):
+        self.actions.clear()
         self.actor_losses.clear()
         self.critic_losses.clear()
         self.rewards.clear()
@@ -135,7 +136,7 @@ class Hyperparameters:
 
 
 class DDPGAgent(BaseAgent):
-    def __init__(self, state_spec, action_spec, replay_buffer_size=2048, params=None):
+    def __init__(self, state_spec, action_spec, replay_buffer_size=65536, params=None):
         state_dim = sum([np.prod(spec.shape) for spec in state_spec.values()])
         self.state_dim = state_dim
 
@@ -192,7 +193,8 @@ class DDPGAgent(BaseAgent):
     def get_action(self, state, epsilon=0.0):
         flattened_state = self._flatten_state(state)
         flattened_state = tf.reshape(flattened_state, (1, -1))
-        return self.get_action_from_model(flattened_state, epsilon)
+        action = self.get_action_from_model(flattened_state, epsilon)
+        return action
 
     @tf.function(
         input_signature=[
@@ -226,7 +228,7 @@ class DDPGAgent(BaseAgent):
         self.replay_buffer.store((state, action, next_state, reward, done))
 
         # Only start training once enough samples are available in the buffer
-        if len(self.replay_buffer) < self.replay_buffer.size:
+        if len(self.replay_buffer) < self.params.batch_size:
             return None
 
         states, actions, next_states, rewards, dones = self.replay_buffer.sample(
@@ -234,11 +236,11 @@ class DDPGAgent(BaseAgent):
         )
 
         training_metrics = self.train_step(
-            states=states,
-            actions=actions,
-            next_states=next_states,
-            rewards=rewards,
-            dones=dones,
+            state=states,
+            action=actions,
+            next_state=next_states,
+            reward=rewards,
+            done=dones,
         )
 
         self.stats.rewards.append(reward.numpy())
@@ -262,29 +264,24 @@ class DDPGAgent(BaseAgent):
             tf.TensorSpec(shape=(None, 1), dtype=tf.float32),  # done
         ]
     )
-    def train_step(self, states, actions, next_states, rewards, dones):
+    def train_step(self, state, action, next_state, reward, done):
         #
         # Calculate the 'target' q-value using target netowrks
         #
 
         # Given the next state, pick a next action
-        target_actions = self.actor_target(next_states)
+        target_actions = self.actor_target(next_state)
         # Then, calculate the q-value for that (next_state, next_action)
-        target_q_values = self.critic_target([next_states, target_actions])
+        target_q_values = self.critic_target([next_state, target_actions])
         # And add it to the existing reward to get the full reward
-        target_q_values = (
-            rewards
-            + (tf.cast(1.0, dtype=tf.float32) - tf.cast(dones, dtype=tf.float32))
-            * tf.cast(self.params.gamma, dtype=tf.float32)
-            * target_q_values
-        )
+        target_q_values = reward + (1.0 - done) * self.params.gamma * target_q_values
 
         #
         # Update the Critic
         #
         with tf.GradientTape() as tape:
             # Then, we calculate the q-value using the normal critic
-            q_values = self.critic([states, actions])
+            q_values = self.critic([state, action])
             # and we compare it to our target q-value and use that to derive the loss.
             critic_loss = tf.reduce_mean(tf.square(target_q_values - q_values))
             # Calculate this as a metric
@@ -308,9 +305,9 @@ class DDPGAgent(BaseAgent):
         #
         with tf.GradientTape() as tape:
             # Get the action for the given state
-            actor_actions = self.actor(states)
+            actor_actions = self.actor(state)
             # Use the critic to determine the q-value for that action
-            q_values = self.critic([states, actor_actions])
+            q_values = self.critic([state, actor_actions])
             # We define our loss as the negative mean of that q-value
             # to encourage the actor to maximize the q-value
             actor_loss = -tf.reduce_mean(q_values)

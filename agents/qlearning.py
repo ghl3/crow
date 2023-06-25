@@ -129,7 +129,7 @@ class QLearningAgent:
         self.replay_buffer.store((state, action, next_state, reward, done))
 
         # Only start training once enough samples are available in the buffer
-        if len(self.replay_buffer) < self.replay_buffer.size:
+        if len(self.replay_buffer) < self.params.batch_size:
             return None
 
         states, actions, next_states, rewards, dones = self.replay_buffer.sample(
