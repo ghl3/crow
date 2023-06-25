@@ -6,7 +6,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import tensorflow.experimental.numpy as np
 
-from agents.replay_buffer import ReplayBuffer
+from replay_buffer import ReplayBuffer
 
 
 @dataclass
@@ -33,11 +33,12 @@ class Stats:
 class Hyperparameters:
     learning_rate: float = 0.01
     gamma: float = 0.99
-    batch_size: int = 32
+    batch_size: int = 256
 
 
 class QLearningAgent:
-    def __init__(self, state_dim, action_spec, replay_buffer_size=100, params=None):
+    def __init__(self, state_spec, action_spec, replay_buffer_size=2048, params=None):
+        state_dim = sum([np.prod(spec.shape) for spec in state_spec.values()])
         self.state_dim = state_dim
 
         self.action_spec = action_spec
@@ -51,13 +52,17 @@ class QLearningAgent:
 
         # Initialize Q-Network
         # Output is a (action_dim, batch_size) array of Q-values for each action.
+        # The value represents the expected return for taking that action in that state.
         self.model = tf.keras.Sequential(
             [
-                layers.Dense(8, input_shape=(state_dim,), activation="relu"),
-                layers.Dense(4, activation="relu"),
-                layers.Dense(2),  # self.action_dim),
+                layers.Dense(
+                    16, input_shape=(state_dim,), activation="elu", use_bias=False
+                ),
+                layers.Dense(8, activation="elu", use_bias=False),
+                layers.Dense(2, activation=None, use_bias=False),
             ]
         )
+
         self.optimizer = tf.keras.optimizers.legacy.Adam(
             learning_rate=float(self.params.learning_rate)
         )
@@ -69,12 +74,7 @@ class QLearningAgent:
         self.replay_buffer = ReplayBuffer(replay_buffer_size, 5)
         # self.batch_size = batch_size
 
-    def _flatten_state(self, state):
-        return tf.cast(
-            tf.concat([state[key] for key in sorted(state.keys())], axis=0), tf.float32
-        )
-
-    def get_action(self, state, epsilon=0):
+    def get_action(self, state, epsilon=0.0):
         """Given a state, return the agent's action.
         - state: the state the agent is in as a dictionary
         - epsilon: the probability of taking a random action
@@ -83,7 +83,9 @@ class QLearningAgent:
         """
         flattened_state = self._flatten_state(state)
         flattened_state = tf.reshape(flattened_state, (1, -1))
-        return self.get_action_from_model(flattened_state, tf.cast(epsilon, tf.float32))
+        return self.get_action_from_model(
+            flattened_state, tf.cast(epsilon, tf.float32)
+        ).numpy()
 
     @tf.function(
         input_signature=[
@@ -91,7 +93,7 @@ class QLearningAgent:
             tf.TensorSpec(shape=(), dtype=tf.float32),
         ]
     )
-    def get_action_from_model(self, state, epsilon=0):
+    def get_action_from_model(self, state, epsilon):
         """Given a state, return the agent's action.
         - state: the state the agent is in as a tensor
         - epsilon: the probability of taking a random action
@@ -202,3 +204,8 @@ class QLearningAgent:
     def write_summaries(self, episode_num):
         self.stats.write_summaries(episode_num)
         self.stats.clear()
+
+    def _flatten_state(self, state):
+        return tf.cast(
+            tf.concat([state[key] for key in sorted(state.keys())], axis=0), tf.float32
+        )

@@ -17,7 +17,7 @@ class ReplayBuffer:
             len(experience) == self.num_tensors
         ), "Number of tensors in the experience does not match num_tensors"
         self.experiences.append(experience)
-        if len(self.experiences) > self.size:
+        while len(self.experiences) > self.size:
             self.experiences.popleft()
 
     def sample(self, batch_size: int) -> Tuple[Tensor, ...]:

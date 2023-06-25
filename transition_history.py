@@ -16,9 +16,9 @@ class Transitions:
 
 
 class TransitionHistory:
-    def __init__(self, capacity=1000000):
+    def __init__(self, capacity=1024):
         self.capacity = capacity
-        self.transitions = []
+        self.transitions: List[Transitions] = []
 
     def __len__(self):
         return len(self.transitions)
