@@ -1,3 +1,26 @@
+import argparse
+
+# Parse command line arguments before importing other modules
+parser = argparse.ArgumentParser()
+parser.add_argument("--log_dir", help="log directory", type=str, default="logs")
+parser.add_argument(
+    "--num_episodes", help="number of episodes to train for", type=int, default=500
+)
+parser.add_argument(
+    "--use_gpu",
+    help="whether to use the GPU",
+    default=False,
+    action="store_true",
+)
+parser.add_argument(
+    "--use_egl", help="whether to use EGL", default=False, action="store_true"
+)
+args = parser.parse_args()
+
+if args.use_egl:
+    os.environ["MUJOCO_GL"] = "egl"
+
+
 import os
 import numpy as np
 import tensorflow as tf
@@ -11,21 +34,6 @@ import agents.ddpg
 
 import display
 import timer
-import argparse
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--log_dir", help="log directory", type=str, default="logs")
-parser.add_argument(
-    "--num_episodes", help="number of episodes to train for", type=int, default=500
-)
-parser.add_argument(
-    "--use_gpu",
-    help="whether to use the GPU",
-    default=False,
-    action="store_true",
-)
-args = parser.parse_args()
 
 
 def train(env, agent, num_episodes=500, log_dir="logs"):
