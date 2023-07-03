@@ -1,3 +1,4 @@
+import os
 import argparse
 
 # Parse command line arguments before importing other modules
@@ -21,7 +22,6 @@ if args.use_egl:
     os.environ["MUJOCO_GL"] = "egl"
 
 
-import os
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
