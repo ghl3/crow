@@ -75,22 +75,30 @@ def create_actor(state_dim, action_dim, action_bound):
     x = layers.Dense(
         10,
         kernel_initializer=HeNormal(),
-        bias_initializer=Zeros(),
-        kernel_regularizer=l2(1e-5),
+        use_bias=False,
+        activation=None,
+        # bias_initializer=Zeros(),
+        # kernel_regularizer=l2(1e-5),
     )(inputs)
     x = BatchNormalization()(x)
     x = layers.Activation("elu")(x)  # ELU activation here
     x = layers.Dense(
         5,
         kernel_initializer=HeNormal(),
-        bias_initializer=Zeros(),
-        kernel_regularizer=l2(1e-5),
+        use_bias=False,
+        activation=None,
+        # bias_initializer=Zeros(),
+        # kernel_regularizer=l2(1e-5),
     )(x)
     x = BatchNormalization()(x)
     x = layers.Activation("elu")(x)  # ELU activation here
-
     # A value between -1 and 1
-    raw_actions = layers.Dense(action_dim, activation="tanh")(x)
+    raw_actions = layers.Dense(
+        action_dim,
+        kernel_initializer=HeNormal(),
+        use_bias=False,
+        activation="tanh",
+    )(x)
 
     # Scale the output to match the action space
     actions = scale_value(raw_actions, (-1.0, 1.0), action_bound)
@@ -108,7 +116,9 @@ def create_critic(state_dim, action_dim):
     x = layers.Dense(
         10,
         kernel_initializer=HeNormal(),
-        bias_initializer=Zeros(),
+        use_bias=False,
+        activation=None,
+        # bias_initializer=Zeros(),
         # kernel_regularizer=l2(1e-5),
     )(inputs)
     x = BatchNormalization()(x)
@@ -116,12 +126,19 @@ def create_critic(state_dim, action_dim):
     x = layers.Dense(
         5,
         kernel_initializer=HeNormal(),
-        bias_initializer=Zeros(),
+        use_bias=False,
+        activation=None,
+        # bias_initializer=Zeros(),
         # kernel_regularizer=l2(1e-5),
     )(x)
     x = BatchNormalization()(x)
     x = layers.Activation("elu")(x)  # ELU activation here
-    q_values = layers.Dense(1)(x)
+    q_values = layers.Dense(
+        1,
+        kernel_initializer=HeNormal(),
+        use_bias=False,
+        activation=None,
+    )(x)
     return tf.keras.Model(inputs=[state_inputs, action_inputs], outputs=q_values)
 
 
@@ -205,6 +222,20 @@ class DDPGAgent(BaseAgent):
     def get_action_from_model(self, state, epsilon):
         action_min, action_max = self.action_bound
 
+        # Scale the noise to be the size of the action space
+        noise = scale_value(self.noise(), (-1.0, 1.0), (action_min, action_max))
+
+        # Get the action from the actor network
+        action = self.actor(state)[0] + epsilon * noise
+
+        # Ensure action stays within bounds
+        action = tf.clip_by_value(action, action_min, action_max)
+
+        return action
+
+    def get_action_from_model(self, state, epsilon):
+        action_min, action_max = self.action_bound
+
         if tf.random.uniform(()) < epsilon:
             # With probability epsilon, choose a random action
             action = tf.random.uniform(
@@ -221,7 +252,6 @@ class DDPGAgent(BaseAgent):
     def train(self, state, action, next_state, reward, done):
         state = self._flatten_state(state)
         next_state = self._flatten_state(next_state)
-
         reward = tf.constant([reward], dtype=tf.float32)
         done = tf.constant([done], dtype=tf.float32)
 
